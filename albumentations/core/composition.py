@@ -93,6 +93,7 @@ class BaseCompose(object):
 
     def add_targets(self, additional_targets):
         if additional_targets:
+            self._additional_targets = additional_targets
             for t in self.transforms:
                 t.add_targets(additional_targets)
 
@@ -191,14 +192,30 @@ class Compose(BaseCompose):
                     data = data_preprocessing(self.keypoints_name, self.params[self.keypoints_name], check_keypoints,
                                               convert_keypoints_to_albumentations, data)
 
+                # TODO: Add pre processing for additional_targets
+                if self._additional_targets:
+                    for target_name, ref_target_name in self._additional_targets.items():
+                        if ref_target_name == self.keypoints_name:
+                            data = data_preprocessing(target_name, self.params[self.keypoints_name], check_keypoints,
+                                              convert_keypoints_to_albumentations, data)
+
             data = t(force_apply=force_apply, **data)
 
             if dual_start_end is not None and idx == dual_start_end[1]:
+
+                # TODO: Add post processing for additional_targets
+
                 if self.params[self.bboxes_name]:
                     data = data_postprocessing(self.bboxes_name, self.params[self.bboxes_name], check_bboxes,
                                                filter_bboxes, convert_bboxes_from_albumentations, data)
                 if self.params[self.keypoints_name]:
                     data = data_postprocessing(self.keypoints_name, self.params[self.keypoints_name], check_keypoints,
+                                               filter_keypoints, convert_keypoints_from_albumentations, data)
+
+                if self._additional_targets:
+                    for target_name, ref_target_name in self._additional_targets.items():
+                        if ref_target_name == self.keypoints_name:
+                            data = data_postprocessing(target_name, self.params[self.keypoints_name], check_keypoints,
                                                filter_keypoints, convert_keypoints_from_albumentations, data)
 
         return data
@@ -220,7 +237,7 @@ def data_postprocessing(data_name, params, check_fn, filter_fn, convert_fn, data
     if data_name == 'bboxes':
         additional_params['min_area'] = params.get('min_area', 0.0),
         additional_params['min_visibility'] = params.get('min_visibility', 0.0)
-    elif data_name == 'keypoints':
+    elif data_name.startswith('keypoints'):
         additional_params['remove_invisible'] = bool(params.get('remove_invisible', True))
     else:
         raise Exception('Not known data_name')
